@@ -21,4 +21,37 @@ _발생하는 문제에 대한 모든 책임은 본인에게 있습니다._
 
 # Dependency
 
-> [fastapi](https://github.com/tiangolo/fastapi) , [ccxt](https://github.com/ccxt/ccxt) , [uvicorn](https://github.com/encode/uvicorn)
+> [fastapi](https://github.com/tiangolo/fastapi) , [ccxt](https://github.com/ccxt/ccxt) , [uvicorn](https://github.com/encode/uvicorn), [pocketbase](https://pocketbase.io/)
+
+# Run
+
+```
+uvicorn main:app --reload --host 0.0.0.0
+```
+
+# PocketBase
+
+<div class="alert m-t-10 m-b-xs">
+  <div class="content">
+    <ul>
+      <li class="m-b-5">
+        <a href="http://127.0.0.1:8090" target="_blank">
+          <code>http://127.0.0.1:8090</code>
+        </a>
+        - if <code>pb_public</code> directory exists, serves the static content from it (html, css, images, etc.)
+      </li>
+      <li class="m-b-5">
+        <a href="http://127.0.0.1:8090/_/" target="_blank">
+          <code>http://127.0.0.1:8090/_/</code>
+        </a>
+        - Admin dashboard UI
+      </li> 
+      <li>
+        <a href="http://127.0.0.1:8090/api/" target="_blank">
+          <code>http://127.0.0.1:8090/api/</code>
+        </a>
+      - REST API
+      </li>
+    </ul>
+  </div>
+</div>
