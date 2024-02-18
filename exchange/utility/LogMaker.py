@@ -197,7 +197,10 @@ def log_hedge_message(exchange, base, quote, exchange_amount, upbit_amount, hedg
 
 
 def log_error_message(error, name):
-    embed = Embed(title=f"{name} 에러", description=f"[{name} 에러가 발생했습니다]\n{error}", color=0xFF0000)
+    max_description_length = 2048
+    error_description = error if len(error) <= max_description_length else error[:max_description_length]
+
+    embed = Embed(title=f"{name} 에러", description=f"[{name} 에러가 발생했습니다]\n{error_description}", color=0xFF0000)
     logger.error(f"{name} [에러가 발생했습니다]\n{error}")
     log_message(embed=embed)
 
