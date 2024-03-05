@@ -164,7 +164,7 @@ class Okx:
         else:
             raise error.AmountPercentNoneError()
 
-        return result
+        return float(result)
 
     def market_order(self, order_info: MarketOrder):
         from exchange.pexchange import retry
