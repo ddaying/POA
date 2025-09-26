@@ -124,7 +124,7 @@ def retry(
     func,
     *args,
     order_info: MarketOrder,
-    max_attempts=3,
+    max_attempts=5,
     delay=1,
     instance: Binance | Bybit | Bitget | Upbit | Okx = None,
 ):
@@ -137,10 +137,12 @@ def retry(
         except Exception as e:
             logger.error(f"에러 발생: {str(e)}")
             attempts += 1
-            if func.__name__ == "create_order":
+            if func.__name__ == "create_order" or func.__name__ == "set_leverage":
                 if order_info.exchange in ("BINANCE"):
                     if "Internal error" in str(e):
                         time.sleep(delay)  # 재시도 간격 설정
+                    elif "Server is currently overloaded" in str(e):
+                        time.sleep(delay)
                     elif "position side does not match" in str(e):
                         if instance.position_mode == "one-way":
                             instance.position_mode = "hedge"
@@ -149,12 +151,14 @@ def retry(
                                     positionSide = "LONG"
                                 elif order_info.is_close:
                                     positionSide = "SHORT"
+                                    
                             elif order_info.side == "sell":
                                 if order_info.is_entry:
                                     positionSide = "SHORT"
                                 elif order_info.is_close:
                                     positionSide = "LONG"
-
+                                    
+    
                             params = {"positionSide": positionSide}
                         elif instance.position_mode == "hedge":
                             instance.position_mode = "one-way"
@@ -260,29 +264,43 @@ def retry(
                     else:
                         attempts = max_attempts
                 elif order_info.exchange in ("BITGET"):
-                    if "unilateral position" in str(e):
+                    if "unilateral position" in str(e) or "hold side is null" in str(e) or "No position to close" in str(e):
+                        final_side = order_info.side
+                        margin_mode = args[-1].get("marginMode") or "isolated"
                         if instance.position_mode == "hedge":
                             instance.position_mode = "one-way"
-                            new_side = order_info.side + "_single"
-                            new_params = {"side": new_side}
-                            args = tuple(
-                                new_side if i == 2 else arg
-                                for i, arg in enumerate(args)
-                            )
+                            new_params = {"oneWayMode": True, "marginMode": margin_mode}
                             args = tuple(
                                 new_params if i == 5 else arg
                                 for i, arg in enumerate(args)
                             )
                         elif instance.position_mode == "one-way":
                             instance.position_mode = "hedge"
+
                             if order_info.is_entry:
-                                new_params = {}
+                                if order_info.is_futures:
+                                    if order_info.is_buy:
+                                        trade_side = "Open" 
+                                    else:
+                                        trade_side = "open"
+                                    new_params = { "tradeSide": trade_side, "marginMode": margin_mode}
                             elif order_info.is_close:
-                                new_params = {"reduceOnly": True}
+                                if order_info.side == "sell":
+                                    final_side = "buy"
+                                elif order_info.side == "buy":
+                                    final_side = "sell"
+                                new_params = {"reduceOnly": True, "tradeSide":"close"}
+                            
                             args = tuple(
                                 new_params if i == 5 else arg
                                 for i, arg in enumerate(args)
                             )
+
+                            args = tuple(
+                                final_side if i == 2 else arg
+                                for i, arg in enumerate(args)
+                            )
+
 
                     elif "two-way positions" in str(e):
                         if instance.position_mode == "hedge":

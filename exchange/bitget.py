@@ -17,7 +17,7 @@ class Bitget:
         )
         self.client.load_markets()
         self.order_info: MarketOrder = None
-        self.position_mode = "hedge"
+        self.position_mode = "one-way"
 
     def init_info(self, order_info: MarketOrder):
         self.order_info = order_info
@@ -125,24 +125,9 @@ class Bitget:
         return result
 
     def set_leverage(self, leverage, symbol):
-        if self.order_info.is_buy:
-            hold_side = "long"
-        elif self.order_info.is_sell:
-            hold_side = "short"
-        market = self.client.market(symbol)
-        request = {
-            "symbol": market["id"],
-            "marginCoin": market["settleId"],
-            "leverage": leverage,
-            # 'holdSide': 'long' or 'short',
-        }
-
-        account = self.client.privateMixGetAccountAccount(
-            {"symbol": market["id"], "marginCoin": market["settleId"]}
-        )
-        if account["data"]["marginMode"] == "fixed":
-            request |= {"holdSide": hold_side}
-        return self.client.privateMixPostAccountSetLeverage(request)
+        
+        hold_side = "long" if self.order_info.is_buy else "short"
+        return self.client.set_leverage(leverage, symbol, params= { "holdSide": hold_side })
 
     def market_order(self, order_info: MarketOrder):
         from exchange.pexchange import retry
@@ -186,13 +171,23 @@ class Bitget:
         entry_amount = self.get_amount(order_info)
         if entry_amount == 0:
             raise error.MinAmountError()
+        
         if self.position_mode == "one-way":
-            new_side = order_info.side + "_single"
-            params = {"side": new_side}
+            params = { "oneWayMode": True }
         elif self.position_mode == "hedge":
-            params = {}
+            if order_info.is_futures:
+                if order_info.is_buy:
+                    trade_side = "Open" 
+                else:
+                    trade_side = "open"
+                params = { "tradeSide": trade_side }
+                
+        params |= { "marginMode": order_info.margin_mode or "isolated" }
+        if order_info.margin_mode is not None:
+            self.client.set_margin_mode(order_info.margin_mode, symbol)
+
         if order_info.leverage is not None:
-            self.set_leverage(order_info.leverage, symbol)
+            retry(self.set_leverage, order_info.leverage, symbol, order_info = order_info, instance = self)
         try:
             return retry(
                 self.client.create_order,
@@ -216,17 +211,21 @@ class Bitget:
 
         symbol = self.order_info.unified_symbol
         close_amount = self.get_amount(order_info)
+        final_side = order_info.side
         if self.position_mode == "one-way":
-            new_side = order_info.side + "_single"
-            params = {"reduceOnly": True, "side": new_side}
+            params = {"reduceOnly": True, "oneWayMode": True}
         elif self.position_mode == "hedge":
-            params = {"reduceOnly": True}
+            if order_info.side == "sell":
+                final_side = "buy"
+            elif order_info.side == "buy":
+                final_side = "sell"
+            params = {"reduceOnly": True, "tradeSide":"close"}
         try:
             result = retry(
                 self.client.create_order,
                 symbol,
                 order_info.type.lower(),
-                order_info.side,
+                final_side,
                 abs(close_amount),
                 None,
                 params,
